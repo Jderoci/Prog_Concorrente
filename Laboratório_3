@@ -15,7 +15,7 @@ public class Pi extends Thread{
     //Método executado pela thread
     public void run(){
         for (int i = id_threads; i < n; i += n_threads){
-            valor += Math.pow((-1), i) * (1.0/(2 * i + 1));
+            valor += Math.pow((-1), i) * (1.0 / (2 * i + 1));
         }
     }
 
@@ -26,13 +26,14 @@ public class Pi extends Thread{
     //Classe do método Main
     public static class valorPi{
         static double soma_total = 0;
+        static double pi_original = Math.PI;
 
         public static void main (String[] args){
             Scanner sc = new Scanner(System.in);
 
             System.out.print("Valor de n: ");
             int n = sc.nextInt();
-            System.out.print("Número de Threads: ");
+            System.out.print("Numero de Threads: ");
             int n_threads = sc.nextInt();
 
             //Criando as Threads
@@ -68,8 +69,9 @@ public class Pi extends Thread{
             //Comparando os valores
             System.out.println("Pi = " + Math.PI);
             System.out.println("Valor Obtido = " + soma_total);
-            System.out.println("Diferença = "+ Math.abs(Math.PI-soma_total));
-            System.out.println("Terminou");
+            System.out.println("Erro Relativo = "+ Math.abs(pi_original-soma_total) / pi_original);
+            System.out.println("Terminou..");
+
             sc.close();
         }
     }
