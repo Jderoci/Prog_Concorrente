@@ -1,103 +1,140 @@
 #include <stdio.h>
-#include <stdlib.h>
 #include <pthread.h>
 #include <semaphore.h>
+#include <unistd.h>
 
-#define BUFFER_SIZE 10
+#define N 10
+#define P 5
+#define C 5
 
-int buffer[BUFFER_SIZE];
-int buffer_index = 0;
+//Variáveis Globais
+int buffer[N];
+int count = 0;
 
-sem_t empty_slots;   // Semáforo para controlar os slots vazios no buffer
-sem_t filled_slots;  // Semáforo para controlar os slots preenchidos no buffer
-sem_t mutex;         // Semáforo para exclusão mútua no acesso ao buffer
+sem_t slotVazio, slotCheio; //Semáforo para sincronização
+sem_t mutexProd, mutexCons; //Semáforo para exclusão mútua
 
-void inserir(int item) {
-    sem_wait(&empty_slots);  // Aguarda por um slot vazio no buffer
-    sem_wait(&mutex);        // Obtém acesso exclusivo ao buffer
-
-    // Insere o item no buffer
-    buffer[buffer_index] = item;
-    buffer_index = (buffer_index + 1) % BUFFER_SIZE;
-
-    sem_post(&mutex);        // Libera o acesso ao buffer
-    sem_post(&filled_slots); // Indica que um slot foi preenchido
+//Inicializando o Buffer
+void iniciaBuffer(int n){
+    int i;
+    for (i = 0; i < n; i++)
+        buffer[i] = 0;
 }
 
-int retirar() {
+//Imprimindo o Buffer
+void imprimeBuffer(int n){
+    int i;
+    for (i = 0; i < n; i++)
+        printf("%d ", buffer[i]);
+    printf("\n");
+}
+
+//Inserindo elementos no buffer
+void insere(int item, int id){
+    static int in = 0;
+
+    sem_wait(&slotVazio);
+    sem_wait(&mutexProd);
+    printf("Produtor %d: Quer inserir item.\n", id);
+
+    buffer[in] = item;
+    in = (in + 1) % N;
+    count++;
+    printf("Produtor %d: Inseriu o item %d no Buffer.\n", id, item);
+
+    imprimeBuffer(N);
+    printf("Produtor %d: Imprimiu o Buffer.\n", id);
+    printf("\n");
+
+    sem_post(&mutexProd);
+    sem_post(&slotCheio);
+}
+
+// Retirando elementos do buffer
+int retira(int id) {
+    static int out = 0;
     int item;
 
-    sem_wait(&filled_slots); // Aguarda por um slot preenchido no buffer
-    sem_wait(&mutex);        // Obtém acesso exclusivo ao buffer
+    sem_wait(&slotCheio);
+    sem_wait(&mutexCons);
+    printf("Consumidor %d: Quer remover item.\n", id);
 
-    // Remove o item do buffer
-    item = buffer[buffer_index];
-    buffer_index = (buffer_index - 1 + BUFFER_SIZE) % BUFFER_SIZE;
+    item = buffer[out];
+    buffer[out] = 0;
+    out = (out + 1) % N;
+    count--;
+    printf("Consumidor %d: Removeu o item %d do Buffer.\n", id, item);
 
-    sem_post(&mutex);        // Libera o acesso ao buffer
-    sem_post(&empty_slots);  // Indica que um slot foi esvaziado
+    imprimeBuffer(N);
+    printf("Consumidor %d: Imprimiu o Buffer.\n", id);
+    printf("\n");
+
+    sem_post(&mutexCons);
+    sem_post(&slotVazio);
 
     return item;
 }
 
 void *produtor(void *arg) {
-    int id = *((int *)arg);
+    int *id = (int *)arg;
 
     while (1) {
-        int item = rand() % 100;  // Gera um número aleatório para produzir
-        inserir(item);
-        printf("Produtor %d inseriu item %d\n", id, item);
+        insere(*id, *id);
+        sleep(1);
     }
+    pthread_exit(NULL);
 }
 
 void *consumidor(void *arg) {
-    int id = *((int *)arg);
+    int id = *(int *)arg;
+    int item;
 
     while (1) {
-        int item = retirar();
-        printf("Consumidor %d retirou item %d\n", id, item);
+        item = retira(id);
+        sleep(1);
     }
+
+    pthread_exit(NULL);
 }
 
-int main() {
-    int num_produtores, num_consumidores;
-    int i;
+int main(void) {
+    pthread_t produtores[P];
+    pthread_t consumidores[C];
+    int i, id_prod[P], id_cons[C];
 
-    // Inicializa os semáforos
-    sem_init(&empty_slots, 0, BUFFER_SIZE);
-    sem_init(&filled_slots, 0, 0);
-    sem_init(&mutex, 0, 1);
+    // Inicializando o Buffer
+    iniciaBuffer(N);
 
-    printf("Digite o número de produtores: ");
-    scanf("%d", &num_produtores);
-    printf("Digite o número de consumidores: ");
-    scanf("%d", &num_consumidores);
+    // Inicializando os semáforos
+    sem_init(&mutexProd, 0, 1);
+    sem_init(&mutexCons, 0, 1);
+    sem_init(&slotVazio, 0, N);
+    sem_init(&slotCheio, 0, 0);
 
-    // Cria as threads dos produtores
-    pthread_t produtores[num_produtores];
-    int produtores_ids[num_produtores];
-    for (i = 0; i < num_produtores; i++) {
-        produtores_ids[i] = i;
-        pthread_create(&produtores[i], NULL, produtor, &produtores_ids[i]);
+    // Criando as threads dos produtores
+    for (i = 0; i < P; i++) {
+        id_prod[i] = i + 1;
+        pthread_create(&produtores[i], NULL, produtor, (void *)&id_prod[i]);
     }
 
-    // Cria as threads dos consumidores
-    pthread_t consumidores[num_consumidores];
-    int consumidores_ids[num_consumidores];
-    for (i = 0; i < num_consumidores; i++) {
-        consumidores_ids[i] = i;
-        pthread_create(&consumidores[i], NULL, consumidor, &consumidores_ids[i]);
+    // Criando as threads dos consumidores
+    for (i = 0; i < C; i++) {
+        id_cons[i] = i + 1;
+        pthread_create(&consumidores[i], NULL, consumidor, (void *)&id_cons[i]);
     }
-  
-      // Aguarda a finalização das threads dos consumidores
-    for (i = 0; i < num_consumidores; i++) {
+
+    // Aguardando as threads terminarem
+    for (i = 0; i < P; i++) {
+        pthread_join(produtores[i], NULL);
+    }
+    for (i = 0; i < C; i++) {
         pthread_join(consumidores[i], NULL);
     }
 
-    // Realiza a limpeza dos semáforos
-    sem_destroy(&empty_slots);
-    sem_destroy(&filled_slots);
-    sem_destroy(&mutex);
+    sem_destroy(&mutexCons);
+    sem_destroy(&mutexProd);
+    sem_destroy(&slotVazio);
+    sem_destroy(&slotCheio);
 
     return 0;
 }
