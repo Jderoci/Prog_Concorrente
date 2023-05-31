@@ -37,12 +37,9 @@ void insere(int item, int id){
     sem_wait(&mutexProd);
     printf("Produtor %d: Quer inserir item.\n", id);
 
-    for(int i = 0; i < N; i++){
-        buffer[in] = item;
-        in = (in + 1) % N;
-        sem_post(&slotCheio);
-        cont++;
-    }
+    buffer[in] = item;
+    in = (in + 1) % N;
+    cont++;
     printf("Produtor %d: Inseriu o item %d no Buffer.\n", id, item);
     
     imprimeBuffer(N);
@@ -50,6 +47,15 @@ void insere(int item, int id){
     printf("\n");
 
     sem_post(&mutexProd);
+
+    //Sinalizando se o Buffer estiver cheio
+    if (cont == N) {
+        int i;
+        printf("Produtor %d: Buffer está cheio.\n", id);
+        for (i = 0; i < N; i++) {
+        sem_post(&slotCheio);
+        }
+    }
 }
 
 //Retirando elementos do buffer
@@ -75,7 +81,11 @@ int retira(int id){
 
     //Sinalizando se o Buffer estiver vazio
     if(cont == 0){
-        sem_post(&slotVazio);
+        int i;
+        printf("Consumidor %d: Buffer está vazio.\n", id);
+        for (i = 0; i < N; i++) {
+            sem_post(&slotVazio);
+        }
     }
     return item;
 }
@@ -107,22 +117,22 @@ int main(void){
     pthread_t consumidores[C];
     int i, id_prod[P], id_cons[C];
 
-    //Inicializando o Buffer
+    //Iniciando o Buffer
     iniciaBuffer(N);
 
-    //Inicializando os semáforos
+    //Iniciando os semáforos
     sem_init(&mutexProd, 0, 1);
     sem_init(&mutexCons, 0, 1);
     sem_init(&slotVazio, 0, N);
     sem_init(&slotCheio, 0, 0);
 
-    //Criando as threads dos produtores
+    //Criando as threads produtoras
     for (i = 0; i < P; i++){
         id_prod[i] = i + 1;
         pthread_create(&produtores[i], NULL, produtor, (void *)&id_prod[i]);
     }
 
-    //Criando as threads dos consumidores
+    //Criando as threads consumidoras
     for (i = 0; i < C; i++){
         id_cons[i] = i + 1;
         pthread_create(&consumidores[i], NULL, consumidor, (void *)&id_cons[i]);
@@ -141,5 +151,6 @@ int main(void){
     sem_destroy(&slotVazio);
     sem_destroy(&slotCheio);
 
+    pthread_exit(NULL);
     return 0;
 }
