@@ -47,7 +47,6 @@ if __name__ == "__main__":
     print("Valor Obtido =", soma_total)
     print("Erro Relativo =", abs(math.pi - soma_total) / math.pi)
     
-
     #Tempo de execução
     end_time = time.time()
     execution_time = end_time - start_time
